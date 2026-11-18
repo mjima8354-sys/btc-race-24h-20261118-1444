@@ -79,15 +79,15 @@ def buy_fill(notional, bar, pool):
     price = int(int(bar["o"]) * (BPS + SLIP_BPS) * m * Decimal(10 ** PRICE_SCALE)
                 // (BPS * Decimal(10 ** PRICE_SCALE)))
     price = int(Decimal(int(bar["o"])) * (BPS + SLIP_BPS) * m / BPS)
-    qty = spend * 10 ** (QTY_SCALE + PRICE_SCALE) // (price * 10 ** PRICE_SCALE)
+    qty = spend * 10 ** (QTY_SCALE + PRICE_SCALE) // (price * 10 ** QUOTE_SCALE)
     return {"fee": fee, "price": price, "qty": qty}
 
 
 def sell_fill(qty, bar, pool):
-    a = qty * int(bar["o"]) // 10 ** (QTY_SCALE + PRICE_SCALE)
+    a = qty * int(bar["o"]) // 10 ** (QTY_SCALE + PRICE_SCALE - QUOTE_SCALE)
     m = pool.m(a)
     price = max(1, int(Decimal(int(bar["o"])) * (BPS - SLIP_BPS) / (BPS * m)))
-    gross = qty * price // 10 ** PRICE_SCALE
+    gross = qty * price // 10 ** (QTY_SCALE + PRICE_SCALE - QUOTE_SCALE)
     proceeds = gross * (BPS - FEE_BPS) // BPS
     return {"fee": gross - proceeds, "proceeds": proceeds, "price": price}
 
@@ -147,7 +147,7 @@ def backtest(bars_path, bot_path, verbose=False):
                  "account": {"cash_quote_units": str(account["cash"]),
                              "positions": ([{"symbol": SYMBOL, "qty": str(account["qty"]),
                                              "cost_quote_units": str(account["cost"])}] if account["qty"] else []),
-                             "equity_quote_units": str(account["cash"] + account["qty"] * int(bar["c"]) // 10 ** PRICE_SCALE)}}
+                             "equity_quote_units": str(account["cash"] + account["qty"] * int(bar["c"]) // 10 ** (QTY_SCALE + PRICE_SCALE - QUOTE_SCALE))}}
         batches.append(batch)
 
     done = {"type": "done", "seq": len(batches),
@@ -189,7 +189,7 @@ def backtest(bars_path, bot_path, verbose=False):
                 fees_paid += f["fee"]
                 trades += 1
         pending = by_seq.get(i, {}).get("orders", [])
-        eq = account["cash"] + account["qty"] * int(bar["c"]) // 10 ** PRICE_SCALE
+        eq = account["cash"] + account["qty"] * int(bar["c"]) // 10 ** (QTY_SCALE + PRICE_SCALE - QUOTE_SCALE)
         equity_curve.append(eq)
 
     # End-of-window flatten at the last close, same fee and slippage, against the close's depth.
